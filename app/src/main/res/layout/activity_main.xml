@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@android:drawable/screen_background_dark">
+    android:layout_height="match_parent">
 
     <com.liuzhenlin.gallery_viewer.GalleryViewPager
         android:id="@+id/galley_view_pager"
@@ -26,6 +24,6 @@
             android:layout_marginBottom="10dp"
             android:layout_gravity="center"
             android:background="@drawable/wastebasket"
-            tools:ignore="ContentDescription" />
+            android:contentDescription="@string/deletePicture" />
     </FrameLayout>
 </FrameLayout>

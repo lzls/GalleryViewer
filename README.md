@@ -1,6 +1,6 @@
-# GalleryViewer
-A library provides a GalleryViewPager and a GestureImageView to enable you to preview pictures with scale,
-drag or fling gesture.
+# GalleryViewer [![](https://jitpack.io/v/freeze-frames/GalleryViewer.svg)](https://jitpack.io/#freeze-frames/GalleryViewer)
+A library provides a GalleryViewPager and a GestureImageView to enable you to preview pictures with
+scale, drag and fling gestures.
 
 <div align="center">
     <img src="https://github.com/ApksHolder/GalleryViewer/blob/master/preview.gif" width="300">
@@ -13,142 +13,113 @@ A ViewPager can prevent the sliding conflicts when you tend to drag image rather
 **Usages:**
 Similar to ViewPager. But it's necessary for you to set an ItemCallback for it.
 ```Java
-    private ItemCallback mItemCallback;
+private ItemCallback mItemCallback;
 
-    public void setItemCallback(@Nullable ItemCallback callback) {
-        mItemCallback = callback;
-    }
+public void setItemCallback(@Nullable ItemCallback callback) {
+    mItemCallback = callback;
+}
 
-    public interface ItemCallback {
-        /**
-         * @param position the <b>adapter position</b> of the item that you want to get
-         * @return the item at the specified position
-         */
-        Object getItemAt(int position);
-    }
+public interface ItemCallback {
+    /**
+     * @param position the <strong>adapter position</strong> of the item that you want to get
+     * @return the item at the specified position
+     */
+    Object getItemAt(int position);
+}
 ```
 Here is a sample:
 ```Java
-    private final List<ImageView> mImages = new ArrayList<>(PICTURE_COUNT);
-    private static final int PICTURE_COUNT = 7;
+private final List<ImageView> mImages = new ArrayList<>(PICTURE_COUNT);
+private static final int PICTURE_COUNT = 7;
 
-    private static final int TAG_IMAGE_INITIAL_POSITION = 10 << 24;
-    private static final int TAG_IMAGE_ADAPTER_POSITION = 20 << 24;
+private static final int TAG_IMAGE_INITIAL_POSITION = 10 << 24;
+
+@Override
+protected void onCreate(@Nullable Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main);
+
+    for (int i = 0; i < PICTURE_COUNT; i++) {
+        ImageView image = (ImageView) View.inflate(this,
+                R.layout.item_gallery_view_pager, null);
+        image.setOnLongClickListener(this);
+        image.setOnClickListener(this);
+        image.setTag(TAG_IMAGE_INITIAL_POSITION, i);
+        mImages.add(image);
+    }
+    mGalleryViewPager = findViewById(R.id.galley_view_pager);
+    GalleryPagerAdapter adapter = new GalleryPagerAdapter();
+    mGalleryViewPager.setAdapter(adapter);
+    mGalleryViewPager.setItemCallback(adapter);
+    mGalleryViewPager.setPageMargin((int) (20f * getResources().getDisplayMetrics().density + 0.5f));
+}
+
+private class GalleryPagerAdapter extends PagerAdapter implements GalleryViewPager.ItemCallback {
 
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        for (int i = 0; i < PICTURE_COUNT; i++) {
-            ImageView image = (ImageView) View.inflate(this,
-                    R.layout.item_gallery_view_pager, null);
-            image.setOnLongClickListener(this);
-            image.setOnClickListener(this);
-            image.setTag(TAG_IMAGE_INITIAL_POSITION, i);
-            mImages.add(image);
-        }
-        mGalleryViewPager = findViewById(R.id.galley_view_pager);
-        GalleryPagerAdapter adapter = new GalleryPagerAdapter();
-        mGalleryViewPager.setAdapter(adapter);
-        mGalleryViewPager.setItemCallback(adapter);
-        mGalleryViewPager.setPageMargin((int) (20f * getResources().getDisplayMetrics().density + 0.5f));
+    public int getCount() {
+        return mImages.size();
     }
 
-    private class GalleryPagerAdapter extends PagerAdapter implements GalleryViewPager.ItemCallback {
+    @Override
+    public boolean isViewFromObject(@NonNull View view, @NonNull Object object) {
+        return view == object;
+    }
 
-        @Override
-        public int getCount() {
-            return mImages.size();
-        }
-
-        @Override
-        public boolean isViewFromObject(@NonNull View view, @NonNull Object object) {
-            return view == object;
-        }
-
-        @NonNull
-        @Override
-        public Object instantiateItem(@NonNull ViewGroup container, int position) {
-            ImageView image = mImages.get(position);
+    @NonNull
+    @Override
+    public Object instantiateItem(@NonNull ViewGroup container, int position) {
+        ImageView image = mImages.get(position);
+        if (image.getParent() == null) {
             image.setImageDrawable(ResourcesCompat.getDrawable(getResources(), getResources()
                     .getIdentifier("picture" + image.getTag(TAG_IMAGE_INITIAL_POSITION),
                             "drawable", getPackageName()), getTheme()));
-            image.setTag(TAG_IMAGE_ADAPTER_POSITION, position);
-
-            if (image.getParent() != null) {
-                container.removeView(image);
-            }
             container.addView(image);
-            return image;
         }
-
-        @Override
-        public void destroyItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
-            ImageView image = (ImageView) object;
-            image.setImageDrawable(null);
-            container.removeView(image);
-        }
-
-        @Override
-        public int getItemPosition(@NonNull Object object) {
-            View view = (View) object;
-            ViewPager parent = (ViewPager) view.getParent();
-            if (parent == null ||
-                    ((int) view.getTag(TAG_IMAGE_ADAPTER_POSITION)) == parent.getCurrentItem()) {
-                return POSITION_NONE;
-            }
-            return POSITION_UNCHANGED;
-        }
-
-        @Override
-        public Object getItemAt(int position) {
-            if (position >= 0 && position < mImages.size()) {
-                return mImages.get(position);
-            }
-            return null;
-        }
+        return image;
     }
+
+    @Override
+    public void destroyItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
+        ImageView image = (ImageView) object;
+        image.setImageDrawable(null);
+        container.removeView(image);
+    }
+
+    @Override
+    public int getItemPosition(@NonNull Object object) {
+        return POSITION_NONE;
+    }
+
+    @Override
+    public Object getItemAt(int position) {
+        if (position >= 0 && position < mImages.size()) {
+            return mImages.get(position);
+        }
+        return null;
+    }
+}
 ```
 
 **`Note that there does not exist any cache strategy in it, so it's necessary for you
 to apply some caches in its adapter to cache the images that need to be displayed.`**
+
 
 ## GestureImageView
 An ImageView can scale and/or translate its image while you are touching it with zoom in and out
 and/or drag and drop gestures.
 
 ```Java
-public class GestureImageView extends AppCompatImageView implements
-        ViewTreeObserver.OnGlobalLayoutListener, ValueAnimator.AnimatorUpdateListener
+public class GestureImageView extends AppCompatImageView
 ```
 
 **`For more  details, please download source code to see.`**
 
-## Download
-Download via jitpack:
-
-To get a Git project into your build:
-
-Step 1. Add the JitPack repository in your root build.gradle at the end of repositories:
-```gradle
-	allprojects {
-		repositories {
-			...
-			maven { url 'https://jitpack.io' }
-		}
-	}
-```
-Step 2. Add the dependency
-```gradle
-	dependencies {
-	        compile 'com.github.freeze-frame:GalleryViewer:v1.0'
-	}
-```
 
 ## Pull Requests
 I will gladly accept pull requests for bug fixes and feature enhancements but please do them
 in the developers branch.
+
 
 ## License
 Copyright 2018 刘振林

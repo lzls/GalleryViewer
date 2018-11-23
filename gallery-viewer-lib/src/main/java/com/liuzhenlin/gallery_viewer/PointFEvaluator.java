@@ -6,7 +6,6 @@ import android.graphics.PointF;
 /**
  * @author 刘振林
  */
-@SuppressWarnings("WeakerAccess")
 public class PointFEvaluator implements TypeEvaluator<PointF> {
     private final PointF mInterpolation;
 

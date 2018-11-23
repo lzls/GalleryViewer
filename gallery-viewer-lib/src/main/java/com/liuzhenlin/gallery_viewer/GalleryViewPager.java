@@ -28,11 +28,11 @@ public class GalleryViewPager extends ViewPager {
     private VelocityTracker mVelocityTracker;
 
     /**
-     * The minimum velocity to fly this view when the image in the current page is magnified
+     * The minimum velocity to fling this view when the image in the current page is magnified
      *
      * @see GestureImageView
      */
-    private final int mFlyingMinimumVelocityOnCurrImageMagnified;
+    private final int mMinimumFlingVelocityOnCurrImageMagnified; // 800 dp/s
 
     /** Position of the last selected page */
     private int mLastSelectedPageIndex;
@@ -41,26 +41,14 @@ public class GalleryViewPager extends ViewPager {
         @Override
         public void onPageSelected(int position) {
             if (mLastSelectedPageIndex != position && mItemCallback != null) {
-                Object lastItem = mItemCallback.getItemAt(getCurrentItem() - 1);
+                Object lastItem = mItemCallback.getItemAt(mLastSelectedPageIndex);
                 if (lastItem instanceof GestureImageView) {
-                    ((GestureImageView) lastItem).rescaleImage();
+                    ((GestureImageView) lastItem).reinitializeImage();
                 }
             }
             mLastSelectedPageIndex = position;
         }
     };
-
-    @Override
-    public void setCurrentItem(int item) {
-        mLastSelectedPageIndex = item;
-        super.setCurrentItem(item);
-    }
-
-    @Override
-    public void setCurrentItem(int item, boolean smoothScroll) {
-        mLastSelectedPageIndex = item;
-        super.setCurrentItem(item, smoothScroll);
-    }
 
     public GalleryViewPager(@NonNull Context context) {
         this(context, null);
@@ -70,8 +58,8 @@ public class GalleryViewPager extends ViewPager {
         super(context, attrs);
         ViewConfiguration vc = ViewConfiguration.get(context);
         mTouchSlop = vc.getScaledTouchSlop();
-        mFlyingMinimumVelocityOnCurrImageMagnified = (int) (vc.getScaledMaximumFlingVelocity()
-                / 10f + 0.5f);
+        mMinimumFlingVelocityOnCurrImageMagnified =
+                (int) (vc.getScaledMaximumFlingVelocity() / 10f + 0.5f);
         addOnPageChangeListener(mInternalOnPageChangeListener);
     }
 
@@ -86,7 +74,7 @@ public class GalleryViewPager extends ViewPager {
         final int actionMasked = ev.getAction() & MotionEvent.ACTION_MASK;
 
         if (actionMasked == MotionEvent.ACTION_DOWN) {
-            initVelocityTracker();
+            initOrClearVelocityTracker();
         }
         if (mVelocityTracker != null) {
             mVelocityTracker.addMovement(ev);
@@ -113,8 +101,7 @@ public class GalleryViewPager extends ViewPager {
                     }
 
                     final float absDX = Math.abs(ev.getX() - mDownX);
-                    final float absDY = Math.abs(ev.getY() - mDownY);
-                    boolean intercept = absDX > absDY && absDX > mTouchSlop;
+                    boolean intercept = absDX > mTouchSlop && absDX > Math.abs(ev.getY() - mDownY);
                     if (!intercept) return false;
 
                     mVelocityTracker.computeCurrentVelocity(1000);
@@ -123,17 +110,18 @@ public class GalleryViewPager extends ViewPager {
                     GestureImageView image = (GestureImageView) item;
                     RectF imgBounds = image.getImageBounds();
                     if (imgBounds == null) return true;
-                    final int imgAvailableWidth = image.getWidth()
-                            - image.getPaddingLeft() - image.getPaddingRight();
+                    final int imgAvailableWidth =
+                            image.getWidth() - image.getPaddingLeft() - image.getPaddingRight();
                     if (imgBounds.width() > imgAvailableWidth) {
                         final boolean tryScrollPageRight = imgBounds.left >= 0f
-                                && vx >= mFlyingMinimumVelocityOnCurrImageMagnified;
+                                && vx >= mMinimumFlingVelocityOnCurrImageMagnified;
                         final boolean tryScrollPageLeft = imgBounds.right <= imgAvailableWidth
-                                && vx <= -mFlyingMinimumVelocityOnCurrImageMagnified;
+                                && vx <= -mMinimumFlingVelocityOnCurrImageMagnified;
                         intercept = tryScrollPageLeft || tryScrollPageRight;
                     }
 
                     if (intercept) {
+                        mActivePointerId = ViewDragHelper.INVALID_POINTER;
                         recycleVelocityTracker();
 
                         ViewParent parent = getParent();
@@ -177,9 +165,11 @@ public class GalleryViewPager extends ViewPager {
         }
     }
 
-    private void initVelocityTracker() {
+    private void initOrClearVelocityTracker() {
         if (mVelocityTracker == null) {
             mVelocityTracker = VelocityTracker.obtain();
+        } else {
+            mVelocityTracker.clear();
         }
     }
 
@@ -190,15 +180,6 @@ public class GalleryViewPager extends ViewPager {
         }
     }
 
-    @Override
-    public void requestDisallowInterceptTouchEvent(boolean disallowIntercept) {
-        if (disallowIntercept) {
-            mActivePointerId = ViewDragHelper.INVALID_POINTER;
-            recycleVelocityTracker();
-        }
-        super.requestDisallowInterceptTouchEvent(disallowIntercept);
-    }
-
     private ItemCallback mItemCallback;
 
     public void setItemCallback(@Nullable ItemCallback callback) {
@@ -207,7 +188,7 @@ public class GalleryViewPager extends ViewPager {
 
     public interface ItemCallback {
         /**
-         * @param position the <b>adapter position</b> of the item that you want to get
+         * @param position the <strong>adapter position</strong> of the item that you want to get
          * @return the item at the specified position
          */
         Object getItemAt(int position);

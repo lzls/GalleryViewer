@@ -5,7 +5,6 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.res.ResourcesCompat;
 import android.support.v4.view.PagerAdapter;
-import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -28,7 +27,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final int PICTURE_COUNT = 7;
 
     private static final int TAG_IMAGE_INITIAL_POSITION = 10 << 24;
-    private static final int TAG_IMAGE_ADAPTER_POSITION = 20 << 24;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -70,7 +68,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 final int pictureCount = mImages.size();
                 if (pictureCount > 0) {
                     mImages.remove(mGalleryViewPager.getCurrentItem());
-                    // noinspection all (adapter is nonnull)
+                    //noinspection all (adapter is nonnull)
                     mGalleryViewPager.getAdapter().notifyDataSetChanged();
                     if (pictureCount == 1) {
                         finish();
@@ -109,15 +107,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         public Object instantiateItem(@NonNull ViewGroup container, int position) {
             ImageView image = mImages.get(position);
-            image.setImageDrawable(ResourcesCompat.getDrawable(getResources(), getResources()
-                    .getIdentifier("picture" + image.getTag(TAG_IMAGE_INITIAL_POSITION),
-                            "drawable", getPackageName()), getTheme()));
-            image.setTag(TAG_IMAGE_ADAPTER_POSITION, position);
-
-            if (image.getParent() != null) {
-                container.removeView(image);
+            if (image.getParent() == null) {
+                image.setImageDrawable(ResourcesCompat.getDrawable(getResources(), getResources()
+                        .getIdentifier("picture" + image.getTag(TAG_IMAGE_INITIAL_POSITION),
+                                "drawable", getPackageName()), getTheme()));
+                container.addView(image);
             }
-            container.addView(image);
             return image;
         }
 
@@ -130,13 +125,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         @Override
         public int getItemPosition(@NonNull Object object) {
-            View view = (View) object;
-            ViewPager parent = (ViewPager) view.getParent();
-            if (parent == null ||
-                    ((int) view.getTag(TAG_IMAGE_ADAPTER_POSITION)) == parent.getCurrentItem()) {
-                return POSITION_NONE;
-            }
-            return POSITION_UNCHANGED;
+            return POSITION_NONE;
         }
 
         @Override
