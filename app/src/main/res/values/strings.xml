@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">GalleryViewer</string>
+    <string name="deletePicture">删除图片</string>
 </resources>

@@ -9,18 +9,12 @@ import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.TypedArray;
-import android.graphics.Bitmap;
 import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.graphics.RectF;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.Icon;
-import android.net.Uri;
 import android.os.Build;
 import android.support.annotation.Nullable;
-import android.support.annotation.RestrictTo;
-import android.support.annotation.VisibleForTesting;
 import android.support.v4.widget.ViewDragHelper;
 import android.support.v7.widget.AppCompatImageView;
 import android.util.AttributeSet;
@@ -31,14 +25,13 @@ import android.view.ScaleGestureDetector;
 import android.view.VelocityTracker;
 import android.view.ViewConfiguration;
 import android.view.ViewParent;
-import android.view.ViewTreeObserver;
 
 /**
  * @author <a href="mailto:2233788867@qq.com">刘振林</a>
  */
-public class GestureImageView extends AppCompatImageView implements
-        ViewTreeObserver.OnGlobalLayoutListener, ValueAnimator.AnimatorUpdateListener {
+public class GestureImageView extends AppCompatImageView {
     private static final String TAG = "GestureImageView";
+    private static final boolean DEBUG = false;
 
     private final GestureDetector mGestureDetector;
     private final ScaleGestureDetector mScaleGestureDetector;
@@ -69,55 +62,50 @@ public class GestureImageView extends AppCompatImageView implements
     private static final float RATIO_IMAGE_SCALE_MAX_TO_INITIAL = 5f / 1f;
 
     /**
-     * Multiples of the maximum scale of the image {@link #mImageMaxScale}, means that
-     * the image can be temporarily over-scaled to a scale of
-     * {@code mImageMaxScale * IMAGE_OVERSCALE_TIMES_ON_MAXIMIZED} times of its initial scale
-     * {@link #mImageInitialScale} by the user.
+     * A multiplier of the maximum scale for the image {@link #mImageMaxScale}, means that
+     * the image can be temporarily over-scaled to a scale
+     * {@value #IMAGE_OVERSCALE_TIMES_ON_MAXIMIZED} times the maximum one by the user.
      */
+    @SuppressWarnings("JavaDoc")
     private static final float IMAGE_OVERSCALE_TIMES_ON_MAXIMIZED = 1.5f;
 
     private int mPrivateFlags;
 
     /**
-     * A flag indicates that the initial scale {@link #mImageInitialScale}
-     * of the shown image has been resolved.
+     * A flag indicates that the user can scale or translate the image with zoom in and out
+     * or drag and drop gestures.
      */
-    private static final int PFLAG_IMAGE_INITIAL_SCALE_RESOLVED = 1;
-
-    /**
-     * A flag indicates that the user can scale or translate the image
-     * with zoom in and out or drag and drop gestures.
-     */
-    private static final int PFLAG_IMAGE_GESTURES_ENABLED = 1 << 1;
+    private static final int PFLAG_IMAGE_GESTURES_ENABLED = 1;
 
     /**
      * A flag indicates that the user can translate the image
      * with single finger drag and drop gestures though the image has not been magnified.
-     * Note that only when {@link #mPrivateFlags} has been marked with
+     * <p>
+     * <strong>NOTE:</strong> Only when {@link #mPrivateFlags} has been marked with
      * {@link #PFLAG_IMAGE_GESTURES_ENABLED} will it take work.
      */
-    private static final int PFLAG_MOVE_UNMAGNIFIED_IMAGE_VIA_SINGLE_FINGER_ALLOWED = 1 << 2;
+    private static final int PFLAG_MOVE_UNMAGNIFIED_IMAGE_VIA_SINGLE_FINGER_ALLOWED = 1 << 1;
 
     /**
      * A flag indicates that the image is being dragged by user
      */
-    private static final int PFLAG_IMAGE_BEING_DRAGGED = 1 << 3;
+    private static final int PFLAG_IMAGE_BEING_DRAGGED = 1 << 2;
 
     /**
      * Indicates that we have performed a long click during the user's current touches
      */
-    private static final int PFLAG_HAS_PERFORMED_LONG_CLICK = 1 << 4;
+    private static final int PFLAG_HAS_PERFORMED_LONG_CLICK = 1 << 3;
 
     /**
      * Indicates that the performed long click has been consumed
      */
-    private static final int PFLAG_LONG_CLICK_CONSUMED = 1 << 5;
+    private static final int PFLAG_LONG_CLICK_CONSUMED = 1 << 4;
 
     /** The bounds of the image */
     private final RectF mImageBounds = new RectF();
 
-    /** Distance to travel before drag may begin */
-    protected final int mTouchSlop;
+    /** Square of the distance to travel before drag may begin */
+    protected final int mTouchSlopSquare;
 
     /** Last known pointer id for touch events */
     private int mActivePointerId = ViewDragHelper.INVALID_POINTER;
@@ -130,36 +118,36 @@ public class GestureImageView extends AppCompatImageView implements
 
     private VelocityTracker mVelocityTracker;
 
-    /** The minimum velocity for the user gesture to be detected as flying. */
-    private final int mFlyingMinimumVelocity; // 400 dp/s
-    /** The maximum velocity that a flying gesture can produce. */
-    private final int mFlyingMaximumVelocity; // 8000 dp/s
+    /** The minimum velocity for the user gesture to be detected as fling. */
+    private final int mMinimumFlingVelocity; // 400 dp/s
+    /** The maximum velocity that a fling gesture can produce. */
+    private final int mMaximumFlingVelocity; // 8000 dp/s
 
     /**
      * The ratio of the offset (relative to the current position of the image) that the image
-     * will be translated by to the current flying velocity.
+     * will be translated by to the current fling velocity.
      */
-    private static final float RATIO_FLYING_OFFSET_TO_VELOCITY = 1f / 10f;
+    private static final float RATIO_FLING_OFFSET_TO_VELOCITY = 1f / 10f;
 
     /**
-     * The displacement by which this image will be over-translated on we flying it to some end
-     * when it is magnified, as measured in pixels.
+     * The displacement by which this magnified image will be over-translated when we fling it
+     * to some end, as measured in pixels.
      */
     private final float mImageOverTranslation; // 25dp
 
-    private float mOverTransX;
-    private float mOverTransY;
-    private final Runnable mOverTranslateImageRunnable = new Runnable() {
+    private float mOverTranslationX;
+    private float mOverTranslationY;
+    private final Runnable mImageSpringBackRunnable = new Runnable() {
         @Override
         public void run() {
             PointF trans = getImageTranslation();
             animateTranslatingImage(trans, new PointF(
-                    trans.x - mOverTransX, trans.y - mOverTransY));
+                    trans.x - mOverTranslationX, trans.y - mOverTranslationY));
         }
     };
 
     /**
-     * The time interval in milliseconds that {@link #mScaleImageAnimator} or
+     * Time interval in milliseconds that {@link #mScaleImageAnimator} or
      * {@link #mTranslateImageAnimator} will last for.
      */
     private static final int DURATION_ANIMATE_IMAGE = 250; // ms
@@ -174,7 +162,7 @@ public class GestureImageView extends AppCompatImageView implements
 
     /**
      * The scaling pivot point (relative to current view) of the image
-     * while {@link #mScaleImageAnimator} is running to scaling it.
+     * while {@link #mScaleImageAnimator} is running to scale it.
      */
     private final PointF mImageScalingPivot = new PointF();
 
@@ -188,21 +176,22 @@ public class GestureImageView extends AppCompatImageView implements
 
     public GestureImageView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.GestureImageView, defStyleAttr, 0);
-        setImageGesturesEnabled(a.getBoolean(R.styleable
+        TypedArray ta = context.obtainStyledAttributes(attrs, R.styleable.GestureImageView, defStyleAttr, 0);
+        setImageGesturesEnabled(ta.getBoolean(R.styleable
                 .GestureImageView_imageGesturesEnabled, true));
-        setMoveUnmagnifiedImageViaSingleFingerAllowed(a.getBoolean(R.styleable
+        setMoveUnmagnifiedImageViaSingleFingerAllowed(ta.getBoolean(R.styleable
                 .GestureImageView_moveUnmagnifiedImageViaSingleFingerAllowed, false));
-        a.recycle();
+        ta.recycle();
 
         OnImageGestureListener listener = new OnImageGestureListener();
         mGestureDetector = new GestureDetector(context, listener);
         mScaleGestureDetector = new ScaleGestureDetector(context, listener);
 
         ViewConfiguration vc = ViewConfiguration.get(context);
-        mTouchSlop = vc.getScaledTouchSlop();
-        mFlyingMaximumVelocity = vc.getScaledMaximumFlingVelocity();
-        mFlyingMinimumVelocity = (int) (mFlyingMaximumVelocity / 20f + 0.5f);
+        final int touchSlop = vc.getScaledTouchSlop();
+        mTouchSlopSquare = touchSlop * touchSlop;
+        mMaximumFlingVelocity = vc.getScaledMaximumFlingVelocity();
+        mMinimumFlingVelocity = (int) (mMaximumFlingVelocity / 20f + 0.5f);
         mImageOverTranslation = 25f * context.getResources().getDisplayMetrics().density;
     }
 
@@ -238,92 +227,58 @@ public class GestureImageView extends AppCompatImageView implements
         }
     }
 
-    @VisibleForTesting
-    @Override
-    public void onGlobalLayout() {
-        if ((mPrivateFlags & PFLAG_IMAGE_INITIAL_SCALE_RESOLVED) == 0) {
-            mPrivateFlags |= PFLAG_IMAGE_INITIAL_SCALE_RESOLVED;
+    /**
+     * Scales the image to fit current view and translates it to the center of this view.
+     */
+    private void initializeImage() {
+        Drawable d = getDrawable();
+        if (d == null) return;
 
-            Drawable d = getDrawable();
-            if (d == null) return;
+        // Get the available width and height for the image
+        final int width = getWidth() - getPaddingLeft() - getPaddingRight();
+        final int height = getHeight() - getPaddingTop() - getPaddingBottom();
+        // Get the width and height of the image
+        final int imgWidth = d.getIntrinsicWidth();
+        final int imgHeight = d.getIntrinsicHeight();
 
-            // Get the available width and height of the image
-            final int width = getWidth() - getPaddingLeft() - getPaddingRight();
-            final int height = getHeight() - getPaddingTop() - getPaddingBottom();
-            // Get the width and height of the image
-            final int imgWidth = d.getIntrinsicWidth();
-            final int imgHeight = d.getIntrinsicHeight();
+        mImageInitialScale = Math.min((float) width / imgWidth, (float) height / imgHeight);
+        mImageMinScale = mImageInitialScale * RATIO_IMAGE_SCALE_MIN_TO_INITIAL;
+        mImageMaxScale = mImageInitialScale * RATIO_IMAGE_SCALE_MAX_TO_INITIAL;
 
-            mImageInitialScale = Math.min((float) width / imgWidth, (float) height / imgHeight);
-            mImageMinScale = mImageInitialScale * RATIO_IMAGE_SCALE_MIN_TO_INITIAL;
-            mImageMaxScale = mImageInitialScale * RATIO_IMAGE_SCALE_MAX_TO_INITIAL;
-
-            // We need to ensure below will work normally if an other image has been set for this view,
-            // so just reset the current matrix to its initial state.
-            mImageMatrix.reset();
-            // Translate the image to the center of the current view
-            mImageMatrix.postTranslate((width - imgWidth) / 2f, (height - imgHeight) / 2f);
-            // Proportionally scale the image to make its width equal its available width
-            // or/and height equal its available height.
-            mImageMatrix.postScale(mImageInitialScale, mImageInitialScale, width / 2f, height / 2f);
-            setImageMatrix(mImageMatrix);
-        }
-    }
-
-    /** Scales the image to its initial size */
-    public void rescaleImage() {
-        cancelAnimations();
-
-        if ((mPrivateFlags & PFLAG_IMAGE_INITIAL_SCALE_RESOLVED) == 0) {
-            onGlobalLayout();
-        } else {
-            mImageMatrix.setScale(mImageInitialScale, mImageInitialScale);
-            PointF transBy = computeImageTranslationByOnScaled(mImageMatrix);
-            mImageMatrix.postTranslate(transBy.x, transBy.y);
-            setImageMatrix(mImageMatrix);
-        }
-    }
-
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        getViewTreeObserver().addOnGlobalLayoutListener(this);
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN)
-            getViewTreeObserver().removeOnGlobalLayoutListener(this);
-        else
-            getViewTreeObserver().removeGlobalOnLayoutListener(this);
+        // We need to ensure below will work normally if an other image has been set for this view,
+        // so just reset the current matrix to its initial state.
+        mImageMatrix.reset();
+        // Translate the image to the center of the current view
+        mImageMatrix.postTranslate((width - imgWidth) / 2f, (height - imgHeight) / 2f);
+        // Proportionally scale the image to make its width equal its available width
+        // or/and height equal its available height.
+        mImageMatrix.postScale(mImageInitialScale, mImageInitialScale, width / 2f, height / 2f);
+        setImageMatrix(mImageMatrix);
     }
 
     /**
-     * @see AppCompatImageView#setImageResource(int)
-     * @see AppCompatImageView#setImageIcon(Icon)
+     * Rescales the image to its initial size and moves it back to this view's center.
      */
-    @Override
-    public void setImageDrawable(@Nullable Drawable drawable) {
-        if (getDrawable() != drawable) {
-            mPrivateFlags &= ~PFLAG_IMAGE_INITIAL_SCALE_RESOLVED;
-            super.setImageDrawable(drawable);
-        }
+    public void reinitializeImage() {
+        cancelAnimations();
+        initializeImage();
     }
 
     @Override
-    public void setImageBitmap(Bitmap bm) {
-        Drawable d = getDrawable();
-        if (!(d instanceof BitmapDrawable && ((BitmapDrawable) d).getBitmap() == bm)) {
-            mPrivateFlags &= ~PFLAG_IMAGE_INITIAL_SCALE_RESOLVED;
-            super.setImageBitmap(bm);
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (DEBUG) {
+            //@formatter:off
+            Log.i(TAG, "Size of GestureImageView changes: "
+                    + "oldw= " + oldw + "   " + "oldh= " + oldh + "   "
+                    + "w= "    + w    + "   " + "h= "    + h);
+            //@formatter:on
         }
-    }
-
-    @Override
-    public void setImageURI(@Nullable Uri uri) {
-        mPrivateFlags &= ~PFLAG_IMAGE_INITIAL_SCALE_RESOLVED;
-        super.setImageURI(uri);
+        if (oldw == 0 && oldh == 0 /* This view is just added to the view hierarchy */) {
+            initializeImage();
+        } else {
+            reinitializeImage();
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -332,44 +287,46 @@ public class GestureImageView extends AppCompatImageView implements
         // Only when the image gestures are enabled and the current view has been set an image
         // can we process the touch events.
         if ((mPrivateFlags & PFLAG_IMAGE_GESTURES_ENABLED) == 0 || getDrawable() == null) {
+            clearTouch();
             return super.onTouchEvent(event);
         }
 
-        if (mGestureDetector.onTouchEvent(event)) // monitor single tap and double tap events
+        if (mGestureDetector.onTouchEvent(event)) // Monitor single tap and double tap events
             return true;
-        mScaleGestureDetector.onTouchEvent(event); // monitor the scale gestures
+        mScaleGestureDetector.onTouchEvent(event); // Monitor the scale gestures
 
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
-                mPrivateFlags &= ~(PFLAG_IMAGE_BEING_DRAGGED
-                        | PFLAG_HAS_PERFORMED_LONG_CLICK | PFLAG_LONG_CLICK_CONSUMED);
+                // Ensures the touch caches are in the initial state when a new gesture starts.
+                resetTouch();
             case MotionEvent.ACTION_POINTER_DOWN:
                 onPointerDown(event);
                 break;
-            case MotionEvent.ACTION_MOVE: // translate the image after we handled the touch events.
+
+            case MotionEvent.ACTION_MOVE:
                 if (!onPointerMove(event)) {
                     return false;
                 }
 
                 if ((mPrivateFlags & PFLAG_IMAGE_BEING_DRAGGED) == 0) {
-                    final float dx = mTouchX[mTouchX.length - 1] - mDownX;
-                    final float dy = mTouchY[mTouchY.length - 1] - mDownY;
-                    if (Math.abs(dx) > mTouchSlop || Math.abs(dy) > mTouchSlop) {
+                    final float absDX = Math.abs(mTouchX[mTouchX.length - 1] - mDownX);
+                    final float absDY = Math.abs(mTouchY[mTouchY.length - 1] - mDownY);
+                    if (absDX * absDX + absDY * absDY > mTouchSlopSquare) {
                         mPrivateFlags |= PFLAG_IMAGE_BEING_DRAGGED;
                         requestParentDisallowInterceptTouchEvent();
                         cancelAnimations();
                         ensureImageMatrix();
                     }
                 } else {
-                    // If we are allowed to move the image via single finger
-                    // when it hasn't been zoomed in, then we can make it translated,
-                    // or else it will not be moved unless it has been enlarged
-                    // or we are touching it using multiple fingers.
+                    // If we are allowed to move the image via single finger when it hasn't been
+                    // zoomed in, then we can make it translated, or else it will not be moved
+                    // unless it has been enlarged or we are touching it using multiple fingers.
                     if ((mPrivateFlags & PFLAG_MOVE_UNMAGNIFIED_IMAGE_VIA_SINGLE_FINGER_ALLOWED) != 0
                             || getImageScaleX() > mImageInitialScale
                             || getImageScaleY() > mImageInitialScale
                             || event.getPointerCount() > 1) {
-                        initVelocityTracker();
+                        if (mVelocityTracker == null)
+                            mVelocityTracker = VelocityTracker.obtain();
                         mVelocityTracker.addMovement(event);
 
                         final float deltaX = mTouchX[mTouchX.length - 1] - mTouchX[mTouchX.length - 2];
@@ -379,9 +336,11 @@ public class GestureImageView extends AppCompatImageView implements
                     }
                 }
                 break;
+
             case MotionEvent.ACTION_POINTER_UP:
                 onSecondaryPointerUp(event);
                 break;
+
             case MotionEvent.ACTION_UP:
                 if ((mPrivateFlags & PFLAG_IMAGE_BEING_DRAGGED) == 0
                         && (mPrivateFlags & PFLAG_HAS_PERFORMED_LONG_CLICK) != 0
@@ -389,12 +348,11 @@ public class GestureImageView extends AppCompatImageView implements
                     performClick();
                 }
             case MotionEvent.ACTION_CANCEL:
-                mActivePointerId = ViewDragHelper.INVALID_POINTER;
-                if ((mPrivateFlags & PFLAG_IMAGE_BEING_DRAGGED) == 0) {
-                    break;
-                }
-
                 try {
+                    if ((mPrivateFlags & PFLAG_IMAGE_BEING_DRAGGED) == 0) {
+                        break;
+                    }
+
                     final int width = getWidth() - getPaddingLeft() - getPaddingRight();
                     final int height = getHeight() - getPaddingTop() - getPaddingBottom();
 
@@ -402,7 +360,7 @@ public class GestureImageView extends AppCompatImageView implements
 
                     float scaleX = getImageScaleX();
                     float scaleY = getImageScaleY();
-                    // If the current scale of the image is larger than the max scale
+                    // If the current scale of the image is larger than the maximum scale
                     // it can be scaled to, zoom it out to that scale.
                     if (scaleX > mImageMaxScale || scaleY > mImageMaxScale) {
                         Matrix matrix = new Matrix(mImageMatrix);
@@ -418,6 +376,7 @@ public class GestureImageView extends AppCompatImageView implements
                         // translated by when the scaling of it is finished.
                         animateTranslatingImage(trans, finalTrans);
                         break;
+
                         // If the current scale of the image is smaller than its initial scale,
                         // then we need to zoom it in to its initial.
                     } else if (scaleX < mImageInitialScale || scaleY < mImageInitialScale) {
@@ -434,42 +393,43 @@ public class GestureImageView extends AppCompatImageView implements
                         break;
                     }
 
+                    // No scaling is needed below
                     if (mVelocityTracker == null) {
                         break;
-                    }  // No scaling is needed
-                    mVelocityTracker.computeCurrentVelocity(1000, mFlyingMaximumVelocity);
+                    }
+                    mVelocityTracker.computeCurrentVelocity(1000, mMaximumFlingVelocity);
                     final float vx = mVelocityTracker.getXVelocity(mActivePointerId);
                     final float vy = mVelocityTracker.getYVelocity(mActivePointerId);
-                    // If one of the velocities is not less than our minimum flying velocity,
-                    // treat it as flying on user raising up his/her last finger that is
+                    // If one of the velocities is not less than our minimum fling velocity,
+                    // treat it as fling as user raises up his/her last finger that is
                     // touching the screen.
-                    if ((Math.abs(vx) >= mFlyingMinimumVelocity
-                            || Math.abs(vy) >= mFlyingMinimumVelocity)) {
+                    if ((Math.abs(vx) >= mMinimumFlingVelocity
+                            || Math.abs(vy) >= mMinimumFlingVelocity)) {
                         final float imgWidth = mImageBounds.width();
                         final float imgHeight = mImageBounds.height();
                         // Only when the width or height of the image is greater than
-                        // the width or height of the view can this flying be valid
+                        // the width or height of the view can this fling be valid
                         // to translate the image through animator to show its other area
                         // to the user.
                         if (imgWidth > width || imgHeight > height) {
-                            float dx = vx * RATIO_FLYING_OFFSET_TO_VELOCITY;
-                            float dy = vy * RATIO_FLYING_OFFSET_TO_VELOCITY;
+                            float dx = vx * RATIO_FLING_OFFSET_TO_VELOCITY;
+                            float dy = vy * RATIO_FLING_OFFSET_TO_VELOCITY;
                             /*
                              * Adjust dx and dy to make the image translated under our control
                              * (finally let it fit current view).
                              *
                              * @see #computeImageTranslationByOnScaled(Matrix)
                              */
-                            mOverTransX = mOverTransY = 0f;
+                            mOverTranslationX = mOverTranslationY = 0f;
                             if (imgWidth > width) {
                                 if (mImageBounds.left + dx >= 0f) {
                                     if (mImageBounds.left < 0f)
-                                        mOverTransX = mImageOverTranslation;
-                                    dx = -mImageBounds.left + mOverTransX;
+                                        mOverTranslationX = mImageOverTranslation;
+                                    dx = -mImageBounds.left + mOverTranslationX;
                                 } else if (mImageBounds.right + dx <= width) {
                                     if (mImageBounds.right > width)
-                                        mOverTransX = -mImageOverTranslation;
-                                    dx = width - mImageBounds.right + mOverTransX;
+                                        mOverTranslationX = -mImageOverTranslation;
+                                    dx = width - mImageBounds.right + mOverTranslationX;
                                 }
                             } else {
                                 dx = (width + imgWidth) / 2f - mImageBounds.right;
@@ -477,12 +437,12 @@ public class GestureImageView extends AppCompatImageView implements
                             if (imgHeight > height) {
                                 if (mImageBounds.top + dy >= 0f) {
                                     if (mImageBounds.top < 0f)
-                                        mOverTransY = mImageOverTranslation;
-                                    dy = -mImageBounds.top + mOverTransY;
+                                        mOverTranslationY = mImageOverTranslation;
+                                    dy = -mImageBounds.top + mOverTranslationY;
                                 } else if (mImageBounds.bottom + dy <= height) {
                                     if (mImageBounds.bottom > height)
-                                        mOverTransY = -mImageOverTranslation;
-                                    dy = height - mImageBounds.bottom + mOverTransY;
+                                        mOverTranslationY = -mImageOverTranslation;
+                                    dy = height - mImageBounds.bottom + mOverTranslationY;
                                 }
                             } else {
                                 dy = (height + imgHeight) / 2f - mImageBounds.bottom;
@@ -493,22 +453,22 @@ public class GestureImageView extends AppCompatImageView implements
                             PointF trans = getImageTranslation();
                             animateTranslatingImage(trans, new PointF(trans.x + dx, trans.y + dy));
 
-                            if (mOverTransX == 0 && mOverTransY == 0) {
+                            if (mOverTranslationX == 0 && mOverTranslationY == 0) {
                                 break;
                             }
-                            postDelayed(mOverTranslateImageRunnable, DURATION_ANIMATE_IMAGE);
+                            postDelayed(mImageSpringBackRunnable, DURATION_ANIMATE_IMAGE);
                             break;
                         }
                     }
                     // Not else!
-                    // Here regard it as normal scroll
+                    // Here regard it as a normal scroll
                     PointF trans = getImageTranslation();
                     PointF finalTrans = computeImageTranslationByOnScaled(mImageMatrix);
                     finalTrans.offset(trans.x, trans.y);
                     animateTranslatingImage(trans, finalTrans);
                     break;
                 } finally {
-                    recycleVelocityTracker();
+                    clearTouch();
                 }
         }
         return true;
@@ -562,15 +522,20 @@ public class GestureImageView extends AppCompatImageView implements
         }
     }
 
-    private void initVelocityTracker() {
-        if (mVelocityTracker == null)
-            mVelocityTracker = VelocityTracker.obtain();
-    }
-
-    private void recycleVelocityTracker() {
+    private void clearTouch() {
         if (mVelocityTracker != null) {
             mVelocityTracker.recycle();
             mVelocityTracker = null;
+        }
+        resetTouch();
+    }
+
+    private void resetTouch() {
+        mActivePointerId = ViewDragHelper.INVALID_POINTER;
+        mPrivateFlags &= ~(PFLAG_IMAGE_BEING_DRAGGED
+                | PFLAG_HAS_PERFORMED_LONG_CLICK | PFLAG_LONG_CLICK_CONSUMED);
+        if (mVelocityTracker != null) {
+            mVelocityTracker.clear();
         }
     }
 
@@ -714,10 +679,11 @@ public class GestureImageView extends AppCompatImageView implements
     }
 
     /**
-     * Smoothly scale the image through animator.<br>
-     * <b>Note that this can be simultaneously used with
+     * Smoothly scale the image through animator.
+     * <p>
+     * <strong>NOTE:</strong> This can be simultaneously used with
      * {@link #animateTranslatingImage(PointF, PointF)},
-     * but you'd better call it before the latter is invoked.</b>
+     * but you'd better call it before the latter is invoked.
      *
      * @param fromX  the current horizontal scale value of the matrix of the image
      * @param fromY  the current vertical scale value of the matrix of the image
@@ -728,6 +694,10 @@ public class GestureImageView extends AppCompatImageView implements
      */
     public void animateScalingImage(float fromX, float fromY, float toX, float toY,
                                     float pivotX, float pivotY) {
+        if (getDrawable() == null || fromX == toX && fromY == toY) {
+            return;
+        }
+
         ensureImageMatrix();
         mFinalAnimatedScaleX = toX;
         mFinalAnimatedScaleY = toY;
@@ -739,23 +709,31 @@ public class GestureImageView extends AppCompatImageView implements
             mScaleImageAnimator = ValueAnimator.ofObject(new PointFEvaluator(),
                     from, to); // Need to set the values before setting Evaluator
             mScaleImageAnimator.setDuration(DURATION_ANIMATE_IMAGE);
-            mScaleImageAnimator.addUpdateListener(this);
+            mScaleImageAnimator.addUpdateListener(mImageAnimatorsUpdateListener);
         } else {
+            if (mScaleImageAnimator.isRunning()) {
+                mScaleImageAnimator.cancel();
+            }
             mScaleImageAnimator.setObjectValues(from, to);
         }
         mScaleImageAnimator.start();
     }
 
     /**
-     * Smoothly translate the image through animator.<br>
-     * <b>Note that this can be simultaneously used with
+     * Smoothly translate the image through animator.
+     * <p>
+     * <strong>NOTE:</strong> This can be simultaneously used with
      * {@link #animateScalingImage(float, float, float, float, float, float)},
-     * but you'd better call it immediately after the latter was invoked.</b>
+     * but you'd better call it immediately after the latter was invoked.
      *
      * @param from the current translation value of the matrix of the image
      * @param to   the final translation value of the matrix of the image
      */
     public void animateTranslatingImage(PointF from, PointF to) {
+        if (getDrawable() == null || from.x == to.x && from.y == to.y) {
+            return;
+        }
+
         ensureImageMatrix();
         mLastAnimatedTranslationX = from.x;
         mLastAnimatedTranslationY = from.y;
@@ -763,51 +741,57 @@ public class GestureImageView extends AppCompatImageView implements
         if (mTranslateImageAnimator == null) {
             mTranslateImageAnimator = ValueAnimator.ofObject(new PointFEvaluator(), from, to);
             mTranslateImageAnimator.setDuration(DURATION_ANIMATE_IMAGE);
-            mTranslateImageAnimator.addUpdateListener(this);
+            mTranslateImageAnimator.addUpdateListener(mImageAnimatorsUpdateListener);
         } else {
+            if (mTranslateImageAnimator.isRunning()) {
+                mTranslateImageAnimator.cancel();
+            }
             mTranslateImageAnimator.setObjectValues(from, to);
         }
         mTranslateImageAnimator.start();
     }
 
-    @RestrictTo(RestrictTo.Scope.TESTS)
-    @Override
-    public void onAnimationUpdate(ValueAnimator animation) {
-        mImageMatrix.getValues(mImageMatrixValues);
+    private final ValueAnimator.AnimatorUpdateListener mImageAnimatorsUpdateListener
+            = new ValueAnimator.AnimatorUpdateListener() {
+        @Override
+        public void onAnimationUpdate(ValueAnimator animation) {
+            mImageMatrix.getValues(mImageMatrixValues);
 
-        PointF values = (PointF) animation.getAnimatedValue();
-        if (animation == mScaleImageAnimator) {
-            mImageMatrix.postScale(values.x / mImageMatrixValues[Matrix.MSCALE_X],
-                    values.y / mImageMatrixValues[Matrix.MSCALE_Y],
-                    mImageScalingPivot.x, mImageScalingPivot.y);
-            setImageMatrix(mImageMatrix);
+            PointF values = (PointF) animation.getAnimatedValue();
+            if (animation == mScaleImageAnimator) {
+                mImageMatrix.postScale(values.x / mImageMatrixValues[Matrix.MSCALE_X],
+                        values.y / mImageMatrixValues[Matrix.MSCALE_Y],
+                        mImageScalingPivot.x, mImageScalingPivot.y);
+                setImageMatrix(mImageMatrix);
 
-        } else if (animation == mTranslateImageAnimator) {
-            if (mScaleImageAnimator != null && mScaleImageAnimator.isRunning()) {
-                mImageMatrix.postTranslate(
-                        (values.x - mLastAnimatedTranslationX)
-                                * mImageMatrixValues[Matrix.MSCALE_X] / mFinalAnimatedScaleX,
-                        (values.y - mLastAnimatedTranslationY)
-                                * mImageMatrixValues[Matrix.MSCALE_Y] / mFinalAnimatedScaleY);
-            } else {
-                mImageMatrix.postTranslate(
-                        (values.x - mLastAnimatedTranslationX),
-                        (values.y - mLastAnimatedTranslationY));
+            } else if (animation == mTranslateImageAnimator) {
+                if (mScaleImageAnimator != null && mScaleImageAnimator.isRunning()) {
+                    mImageMatrix.postTranslate(
+                            (values.x - mLastAnimatedTranslationX)
+                                    * mImageMatrixValues[Matrix.MSCALE_X] / mFinalAnimatedScaleX,
+                            (values.y - mLastAnimatedTranslationY)
+                                    * mImageMatrixValues[Matrix.MSCALE_Y] / mFinalAnimatedScaleY);
+                } else {
+                    mImageMatrix.postTranslate(
+                            (values.x - mLastAnimatedTranslationX),
+                            (values.y - mLastAnimatedTranslationY));
+                }
+                setImageMatrix(mImageMatrix);
+                mLastAnimatedTranslationX = values.x;
+                mLastAnimatedTranslationY = values.y;
             }
-            setImageMatrix(mImageMatrix);
-            mLastAnimatedTranslationX = values.x;
-            mLastAnimatedTranslationY = values.y;
         }
-    }
+    };
 
     /**
-     * Cancel all running animators and the pending animation that will animate
-     * over-translating this image
+     * Cancel all running animators and the pending animation that will bounce this image back
+     * after it is over-translated.
      */
     private void cancelAnimations() {
-        // May be that we have scheduled a runnable to over translate this image,
-        // which yet hasn't started and should be canceled.
-        removeCallbacks(mOverTranslateImageRunnable);
+        // May be that we have scheduled a Runnable to rebound this image back after it is
+        // over-translated, which yet hasn't started and should be canceled.
+        removeCallbacks(mImageSpringBackRunnable);
+
         // Also animators should be canceled if running
         if (mTranslateImageAnimator != null && mTranslateImageAnimator.isRunning()) {
             mTranslateImageAnimator.cancel();
