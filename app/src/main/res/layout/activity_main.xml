@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.liuzhenlin.gallery_viewer.GalleryViewPager
+    <com.liuzhenlin.galleryviewer.GalleryViewPager
         android:id="@+id/galley_view_pager"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
