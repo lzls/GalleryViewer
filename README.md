@@ -51,7 +51,7 @@ protected void onCreate(@Nullable Bundle savedInstanceState) {
     GalleryPagerAdapter adapter = new GalleryPagerAdapter();
     mGalleryViewPager.setAdapter(adapter);
     mGalleryViewPager.setItemCallback(adapter);
-    mGalleryViewPager.setPageMargin((int) (20f * getResources().getDisplayMetrics().density + 0.5f));
+    mGalleryViewPager.setPageMargin((int) (25f * getResources().getDisplayMetrics().density + 0.5f));
 }
 
 private class GalleryPagerAdapter extends PagerAdapter implements GalleryViewPager.ItemCallback {
