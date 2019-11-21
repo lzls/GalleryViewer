@@ -5,7 +5,6 @@
 
 package com.liuzhenlin.galleryviewer;
 
-import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
@@ -211,7 +210,7 @@ public class GestureImageView extends AppCompatImageView {
         mGestureDetector = new GestureDetector(context, listener);
         mScaleGestureDetector = new ScaleGestureDetector(context, listener);
 
-        final float dp = context.getResources().getDisplayMetrics().density;
+        final float dp = getResources().getDisplayMetrics().density;
         final float touchSlop = ViewConfiguration.getTouchSlop() * dp;
         mTouchSlopSquare = touchSlop * touchSlop;
         mMaximumFlingVelocity = ViewConfiguration.getMaximumFlingVelocity() * dp;
@@ -844,7 +843,7 @@ public class GestureImageView extends AppCompatImageView {
         mImageScalingPivot = new PointF();
         mFromTranslations = new PointF();
         mToTranslations = new PointF();
-        mImageTransformer = ObjectAnimator.ofPropertyValuesHolder(
+        mImageTransformer = ValueAnimator.ofPropertyValuesHolder(
                 PropertyValuesHolder.ofObject(PROPERTY_IMAGE_SCALES,
                         new PointFEvaluator(), mFromScales, mToScales),
                 PropertyValuesHolder.ofObject(PROPERTY_IMAGE_TRANSLATIONS,

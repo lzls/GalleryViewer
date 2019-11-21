@@ -20,7 +20,7 @@ import androidx.viewpager.widget.ViewPager;
 public class GalleryViewPager extends ViewPager {
     private static final String TAG = "GalleryViewPager";
 
-    protected final float mTouchSlop;
+    protected final int mTouchSlop;
 
     private int mActivePointerId = ViewDragHelper.INVALID_POINTER;
     private float mDownX;
@@ -66,9 +66,8 @@ public class GalleryViewPager extends ViewPager {
 
     public GalleryViewPager(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        final float dp = context.getResources().getDisplayMetrics().density;
-        mTouchSlop = ViewConfiguration.getTouchSlop() * dp;
-        mMinimumFlingVelocityOnCurrImageMagnified = 400f * dp;
+        mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        mMinimumFlingVelocityOnCurrImageMagnified = 400f * getResources().getDisplayMetrics().density;
         addOnPageChangeListener(mInternalOnPageChangeListener);
     }
 
