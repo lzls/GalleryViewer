@@ -53,24 +53,18 @@ public class GestureImageView extends AppCompatImageView {
     final Matrix mTmpMatrix = new Matrix();
     final PointF mTmpPointF = new PointF();
 
-    /** @see #getImageInitialScale() */
-    private float mImageInitialScale;
+    /** @see #getFitCenterImageScale() */
+    private float mFitCenterImageScale;
+    /** @see #getFitWidthImageScale() */
+    private float mFitWidthImageScale;
 
     /** @see #getImageMinScale() */
     private float mImageMinScale;
     /** @see #getImageMaxScale() */
     private float mImageMaxScale;
 
-    /**
-     * The ratio of the minimum scale of the image {@link #mImageMinScale}
-     * to its initial scale {@link #mImageInitialScale}.
-     */
-    private static final float RATIO_IMAGE_SCALE_MIN_TO_INITIAL = 1 / 5f;
-    /**
-     * The ratio of the maximum scale of the image {@link #mImageMaxScale}
-     * to its initial scale {@link #mImageInitialScale}.
-     */
-    private static final float RATIO_IMAGE_SCALE_MAX_TO_INITIAL = 5f / 1f;
+    /** Image scale that the image will be zoomed in to when double tapped by the user. */
+    private float mDoubleTapMagnifiedImageScale;
 
     /**
      * A multiplier of the maximum scale for the image {@link #mImageMaxScale}, means that
@@ -220,14 +214,23 @@ public class GestureImageView extends AppCompatImageView {
     }
 
     /**
-     * @return the initial scale of the image after it was properly adjusted to be shown.
+     * @return the scale for the image to fit entirely inside this view, i.e., at least
+     * one axis (X or Y) will fit exactly. The result is centered inside this view,
+     * just as the {@link ScaleType#FIT_CENTER} ScaleType does.
      */
-    public float getImageInitialScale() {
-        return mImageInitialScale;
+    public float getFitCenterImageScale() {
+        return mFitCenterImageScale;
     }
 
     /**
-     * @return the minimum scale that the image can be zoomed out to.
+     * @return the scale for the image to fit the width of this view exactly
+     */
+    public float getFitWidthImageScale() {
+        return mFitWidthImageScale;
+    }
+
+    /**
+     * @return the minimum scale that the image can be zoomed out to
      */
     public float getImageMinScale() {
         return mImageMinScale;
@@ -272,36 +275,53 @@ public class GestureImageView extends AppCompatImageView {
     }
 
     /**
-     * Scales the image to fit current view and translates it to the center of this view.
+     * Scales the image to fit current view and properly positions it inside this view.
      */
     private void initializeImage() {
         Drawable d = getDrawable();
         if (d == null) return;
 
-        // Get the available width and height for the image
+        // Gets the available width and height for the image
         final int width = getWidth() - getPaddingLeft() - getPaddingRight();
         final int height = getHeight() - getPaddingTop() - getPaddingBottom();
-        // Get the width and height of the image
+        // Gets the width and height of the image
         final int imgWidth = d.getIntrinsicWidth();
         final int imgHeight = d.getIntrinsicHeight();
 
-        mImageInitialScale = Math.min((float) width / imgWidth, (float) height / imgHeight);
-        mImageMinScale = mImageInitialScale * RATIO_IMAGE_SCALE_MIN_TO_INITIAL;
-        mImageMaxScale = mImageInitialScale * RATIO_IMAGE_SCALE_MAX_TO_INITIAL;
+        mFitWidthImageScale = (float) width / imgWidth;
+        mFitCenterImageScale = Math.min(mFitWidthImageScale, (float) height / imgHeight);
+        mImageMinScale = mFitCenterImageScale * 1f / 5f;
+        mImageMaxScale = mFitCenterImageScale * 5f;
+        if (mFitWidthImageScale == mFitCenterImageScale) {
+            mDoubleTapMagnifiedImageScale = mImageMaxScale / 2f;
+        } else /*if (fitWidthScale > fitCenterScale)*/ {
+            mDoubleTapMagnifiedImageScale = mFitWidthImageScale;
+            // Make sure the mImageMaxScale is not less than 3 times that of mDoubleTapMagnifiedImageScale,
+            // preferring to have the maximum scale for the image 5 times larger than mFitCenterImageScale.
+            if (mImageMaxScale < mDoubleTapMagnifiedImageScale * 3f) {
+                mImageMaxScale = mDoubleTapMagnifiedImageScale * 3f;
+            }
+        }
 
         // We need to ensure below will work normally if an other image has been set for this view,
         // so just reset the current matrix to its initial state.
         mImageMatrix.reset();
-        // Translate the image to the center of the current view
-        mImageMatrix.postTranslate((width - imgWidth) / 2f, (height - imgHeight) / 2f);
-        // Proportionally scale the image to make its width equal its available width
-        // or/and height equal its available height.
-        mImageMatrix.postScale(mImageInitialScale, mImageInitialScale, width / 2f, height / 2f);
+        if (mFitWidthImageScale == mFitCenterImageScale) {
+            // Translates the image to the center of the current view
+            mImageMatrix.postTranslate((width - imgWidth) / 2f, (height - imgHeight) / 2f);
+            // Proportionally scales the image to make its width equal its available width
+            // or/and height equal its available height.
+            mImageMatrix.postScale(mFitWidthImageScale, mFitWidthImageScale, width / 2f, height / 2f);
+        } else /*if (fitWidthScale > fitCenterScale)*/ {
+            // Scales the image to fit exactly the width of the view with the top edge showed to the user
+            mImageMatrix.postScale(mFitWidthImageScale, mFitWidthImageScale, 0, 0);
+        }
         setImageMatrix(mImageMatrix);
     }
 
     /**
-     * Rescales the image to its initial size and moves it back to this view's center.
+     * Resets the image's scale and translation to the initial values that controlled how
+     * the image showed to the user.
      */
     public void reinitializeImage() {
         cancelImageTransformations();
@@ -384,7 +404,7 @@ public class GestureImageView extends AppCompatImageView {
                         mImageMatrix.getValues(mImageMatrixValues);
                         final float scaleX = mImageMatrixValues[Matrix.MSCALE_X];
                         final float scaleY = mImageMatrixValues[Matrix.MSCALE_Y];
-                        if (scaleX <= mImageInitialScale && scaleY <= mImageInitialScale) break;
+                        if (scaleX <= mFitCenterImageScale && scaleY <= mFitCenterImageScale) break;
                     }
                     final float dx = mTouchX[mTouchX.length - 1] - mTouchX[mTouchX.length - 2];
                     final float dy = mTouchY[mTouchY.length - 1] - mTouchY[mTouchY.length - 2];
@@ -435,17 +455,18 @@ public class GestureImageView extends AppCompatImageView {
                                 DEFAULT_DURATION_TRANSFORM_IMAGE);
                         break;
 
-                        // If the current scale of the image is smaller than its initial scale,
-                        // then we need to zoom it in to its initial.
-                    } else if (scaleX < mImageInitialScale || scaleY < mImageInitialScale) {
+                        // If the current scale of the image is smaller than the scale that makes
+                        // it appear center inside this view (just as the FIT_CENTER ScaleType does),
+                        // then we need to zoom it in to that scale.
+                    } else if (scaleX < mFitCenterImageScale || scaleY < mFitCenterImageScale) {
                         mTmpMatrix.set(mImageMatrix);
                         mTmpMatrix.postScale(
-                                mImageInitialScale / scaleX, mImageInitialScale / scaleY,
+                                mFitCenterImageScale / scaleX, mFitCenterImageScale / scaleY,
                                 mImageBounds.left, mImageBounds.top);
                         computeImageTranslationByOnScaled(mTmpMatrix, mTmpPointF);
                         mTmpPointF.offset(translationX, translationY);
 
-                        transformImage(scaleX, scaleY, mImageInitialScale, mImageInitialScale,
+                        transformImage(scaleX, scaleY, mFitCenterImageScale, mFitCenterImageScale,
                                 mImageBounds.left, mImageBounds.top,
                                 translationX, translationY, mTmpPointF.x, mTmpPointF.y,
                                 DEFAULT_DURATION_TRANSFORM_IMAGE);
@@ -624,13 +645,13 @@ public class GestureImageView extends AppCompatImageView {
 
             final float toScaleX, toScaleY;
             // Take very small floating-point error into account ( + 0.01)
-            final float initialScale = mImageInitialScale + 0.01f;
-            // If the image has been enlarged, make it zoomed out to its initial scale
-            // on user's double tapping.
-            if (scaleX > initialScale || scaleY > initialScale)
-                toScaleX = toScaleY = mImageInitialScale;
+            final float fitCenterScale = mFitCenterImageScale + 0.01f;
+            // If the image has been enlarged, zoom it out to the scale that makes it fit this view's
+            // center on the user's double tapping.
+            if (scaleX > fitCenterScale || scaleY > fitCenterScale)
+                toScaleX = toScaleY = mFitCenterImageScale;
             else // else make it zoomed in
-                toScaleX = toScaleY = mImageMaxScale / 2f;
+                toScaleX = toScaleY = mDoubleTapMagnifiedImageScale;
 
             final float pivotX = e.getX();
             final float pivotY = e.getY();
@@ -796,7 +817,7 @@ public class GestureImageView extends AppCompatImageView {
     }
 
     /**
-     * Smoothly scale and translate the image through animator.
+     * Smoothly scales and translates the image through animator.
      *
      * @param fromScaleX the current horizontal scale of the image
      * @param fromScaleY the current vertical scale of the image
@@ -872,7 +893,7 @@ public class GestureImageView extends AppCompatImageView {
     }
 
     /**
-     * Cancel the running animator and the pending animation that will bounce this image back
+     * Cancels the running animator and the pending animation that will bounce this image back
      * after it is over-translated.
      */
     public void cancelImageTransformations() {
@@ -887,7 +908,7 @@ public class GestureImageView extends AppCompatImageView {
     }
 
     /**
-     * Ensure our values of the matrix {@link #mImageMatrix} are equal to the values of
+     * Ensures our values of the matrix {@link #mImageMatrix} are equal to the values of
      * the current matrix of the image since they may have been changed in other class.
      */
     private void ensureImageMatrix() {
@@ -897,7 +918,7 @@ public class GestureImageView extends AppCompatImageView {
     }
 
     /**
-     * Resolve the image bounds by providing a matrix.
+     * Resolves the image bounds by providing a matrix.
      *
      * @param matrix the matrix used to measure this image
      */
