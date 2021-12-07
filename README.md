@@ -7,6 +7,13 @@ scale, drag and fling gestures.
 </div>
 
 
+## Documentation
+
+* The [release notes][] document the major changes in each release.
+
+[release notes]: https://github.com/lzls/GalleryViewer/blob/master/RELEASE_NOTES.md
+
+
 ## GalleryViewPager
 A ViewPager can prevent the sliding conflicts when you tend to drag image rather than the ViewPager itself.
 
