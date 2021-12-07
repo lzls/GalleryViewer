@@ -15,7 +15,8 @@ scale, drag and fling gestures.
 
 
 ## GalleryViewPager
-A ViewPager can prevent the sliding conflicts when you tend to drag image rather than the ViewPager itself.
+A ViewPager can prevent the sliding conflicts when you tend to drag image rather than the ViewPager
+itself.
 
 **Usages:**
 Similar to ViewPager. But it's necessary for you to set an ItemCallback for it.
@@ -61,7 +62,9 @@ protected void onCreate(@Nullable Bundle savedInstanceState) {
     mGalleryViewPager.setPageMargin((int) (25f * getResources().getDisplayMetrics().density + 0.5f));
 }
 
-private class GalleryPagerAdapter extends PagerAdapter implements GalleryViewPager.ItemCallback {
+private final class GalleryPagerAdapter extends PagerAdapter implements GalleryViewPager.ItemCallback {
+    GalleryPagerAdapter() {
+    }
 
     @Override
     public int getCount() {
@@ -78,9 +81,14 @@ private class GalleryPagerAdapter extends PagerAdapter implements GalleryViewPag
     public Object instantiateItem(@NonNull ViewGroup container, int position) {
         ImageView image = mImages.get(position);
         if (image.getParent() == null) {
-            image.setImageDrawable(ResourcesCompat.getDrawable(getResources(), getResources()
-                    .getIdentifier("picture" + image.getTag(TAG_IMAGE_INITIAL_POSITION),
-                            "drawable", getPackageName()), getTheme()));
+            image.setImageDrawable(
+                    ResourcesCompat.getDrawable(
+                            getResources(),
+                            getResources().getIdentifier(
+                                    "picture" + image.getTag(TAG_IMAGE_INITIAL_POSITION),
+                                    "drawable",
+                                    getPackageName()),
+                            getTheme()));
             container.addView(image);
         }
         return image;
@@ -108,8 +116,8 @@ private class GalleryPagerAdapter extends PagerAdapter implements GalleryViewPag
 }
 ```
 
-**`Note that there does not exist any cache strategy in it, so it's necessary for you
-to apply some caches in its adapter to cache the images that need to be displayed.`**
+**_Note that there does not exist any cache strategy in it, so it's necessary for you
+to apply some caches in its adapter to cache the images that need to be displayed._**
 
 
 ## GestureImageView
@@ -120,7 +128,7 @@ and/or drag and drop gestures.
 public class GestureImageView extends AppCompatImageView
 ```
 
-**`For more  details, please download source code to see.`**
+**_For more details, please download source code to see._**
 
 
 ## Pull Requests
@@ -129,12 +137,13 @@ in the `developers` branch.
 
 
 ## License
-Copyright 2018–2020 刘振林
+Copyright 2018–2021 刘振林
 
 Licensed under the Apache License, Version 2.0 (the "License"); <br>
-you may not use this file except in compliance with the License. You may obtain a copy of the License at
+you may not use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-  http://www.apache.org/licenses/LICENSE-2.0
+&emsp;&emsp;http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software distributed under the License
 is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
