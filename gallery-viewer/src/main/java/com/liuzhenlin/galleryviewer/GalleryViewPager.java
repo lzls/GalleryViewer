@@ -88,17 +88,18 @@ public class GalleryViewPager extends ViewPager {
             if (isLayoutValid(image)) {
                 image.startImageOverScrollAndSpringBack(dx, dy, duration);
             } else {
-                image.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override
-                    public void onGlobalLayout() {
-                        if (isLayoutValid(image)) {
-                            if (mImageOverScrollEnabled) {
-                                image.startImageOverScrollAndSpringBack(dx, dy, duration);
+                image.getViewTreeObserver().addOnGlobalLayoutListener(
+                        new ViewTreeObserver.OnGlobalLayoutListener() {
+                            @Override
+                            public void onGlobalLayout() {
+                                if (isLayoutValid(image)) {
+                                    if (mImageOverScrollEnabled) {
+                                        image.startImageOverScrollAndSpringBack(dx, dy, duration);
+                                    }
+                                    image.getViewTreeObserver().removeGlobalOnLayoutListener(this);
+                                }
                             }
-                            image.getViewTreeObserver().removeGlobalOnLayoutListener(this);
-                        }
-                    }
-                });
+                        });
             }
         }
 
@@ -122,8 +123,8 @@ public class GalleryViewPager extends ViewPager {
     public GalleryViewPager(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         TypedArray ta = context.obtainStyledAttributes(attrs, R.styleable.GalleryViewPager, 0, 0);
-        setImageOverScrollEnabled(ta.getBoolean(R.styleable.
-                GalleryViewPager_imageOverScrollEnabled, true));
+        setImageOverScrollEnabled(
+                ta.getBoolean(R.styleable.GalleryViewPager_imageOverScrollEnabled, true));
         ta.recycle();
 
         final float dp = getResources().getDisplayMetrics().density;
