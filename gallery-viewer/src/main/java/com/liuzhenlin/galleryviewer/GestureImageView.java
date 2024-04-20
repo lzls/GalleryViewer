@@ -653,8 +653,8 @@ public class GestureImageView extends AppCompatImageView {
             else // else make it zoomed in
                 toScaleX = toScaleY = mDoubleTapMagnifiedImageScale;
 
-            final float pivotX = e.getX();
-            final float pivotY = e.getY();
+            final float pivotX = e.getX() - getPaddingLeft();
+            final float pivotY = e.getY() - getPaddingTop();
 
             mTmpMatrix.set(mImageMatrix);
             mTmpMatrix.postScale(toScaleX / scaleX, toScaleY / scaleY, pivotX, pivotY);
@@ -708,7 +708,8 @@ public class GestureImageView extends AppCompatImageView {
             else if (scale * scaleY < mImageMinScale) toScaleY = mImageMinScale / scaleY;
             else toScaleY = scale;
 
-            mImageMatrix.postScale(toScaleX, toScaleY, detector.getFocusX(), detector.getFocusY());
+            mImageMatrix.postScale(toScaleX, toScaleY, detector.getFocusX() - getPaddingLeft(),
+                    detector.getFocusY() - getPaddingTop());
             setImageMatrix(mImageMatrix);
             return true;
         }
